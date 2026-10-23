@@ -54,6 +54,8 @@ jobs:
           persist-credentials: false
       - name: Bauen und pruefen
         run: bash werkzeug/bauen.sh
+      - name: Vertrag-Pruefung testen
+        run: bash werkzeug/vertrag-test.sh
       - name: Vertrag der Bruecke (Hinweis)
         run: bash werkzeug/vertrag.sh
       - name: Artefakt

@@ -29,6 +29,7 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 | `werkzeug/erzeuge-icon.py` | Schreibt das App-Symbol aus dem Monogramm (PyMuPDF), RGB ohne Alphakanal |
 | `werkzeug/bauen.sh` | Bau ohne Signatur und Prüfung des Archivs |
 | `werkzeug/vertrag.sh` | Brücke gegen `huelle-vertrag.json` vom Worker |
+| `werkzeug/vertrag-test.sh` | Prüft `vertrag.sh` ohne Worker mit Dateien aus dem Swift-Stand |
 | `werkzeug/hochladen.sh` | Export, Prüfung des IPA, Upload nach App Store Connect |
 | `.github/workflows/halle.yml` | Prüf-Job und Upload-Job |
 | `.github/workflows/ablauf.yml` | Montags: Prüf-Job auf `main`, rot, wenn der letzte Upload älter als 70 Tage ist |
@@ -41,7 +42,8 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 - Seite an Swift: `window.webkit.messageHandlers.huelle.postMessage({ typ, daten })`, `typ` ist
   `protokoll` (beide) oder `diagnose` (nur Regie).
 - Die Namen stehen in `Halle/Bruecke.swift` in den Zeilen mit `// vertrag:`; `werkzeug/vertrag.sh` prüft sie
-  gegen die veröffentlichte Web-App. Beim Push nur Hinweis, im Upload-Job rot.
+  gegen die veröffentlichte Web-App. Beim Push nur Hinweis, im Upload-Job rot. `bash werkzeug/vertrag.sh --soll`
+  gibt aus, was Swift anmeldet, im Format von `huelle-vertrag.json`.
 
 ## Bau und Upload
 
