@@ -1,15 +1,6 @@
 import UIKit
 import WebKit
 
-/// Die beiden Rollen der Web-App in der Huelle.
-enum Rolle: String {
-    case regie
-    case buehne
-
-    var name: String { self == .regie ? "Regie" : "Bühne" }
-    var pfad: String { self == .regie ? "/cockpit" : "/tv" }
-}
-
 /// Die einzige Adresse der Web-App: die erste Domain unter `WKAppBoundDomains` in der Info.plist
 /// (eine Quelle fuer Swift, App-Bound Domains und `werkzeug/vertrag.sh`). In der TestFlight-Phase laedt
 /// die Huelle die Web-App vom Worker (Bauzettel 50, § 2.2); `huelle.ts` nimmt keine feste Origin an.
@@ -57,8 +48,6 @@ enum Worker {
 final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UIScrollViewDelegate {
     let rolle: Rolle
     let webView: WKWebView
-    /// Hat die Seite nach dem letzten Laden `window.__skemaHuelle` gesehen? `nil`: noch nicht geladen.
-    private(set) var brueckeInSeite: Bool?
     /// Das letzte Laden scheiterte am Netz. Neu geladen wird bei jeder Pfadmeldung „verbunden"
     /// (Netz.swift) und wenn die Regie wieder nach vorn kommt (App.swift `sceneWillEnterForeground`).
     private var wartetAufNetz = false
@@ -189,11 +178,12 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Protokoll.shared.schreibe("\(rolle.name) geladen: \(kurz(webView.url?.absoluteString ?? "?"))")
         wartetAufNetz = false
-        Bruecke.sende("buehne", Diagnose.buehne(), an: self)
+        // Nach jedem Laden den Stand, auf den die Seite wartet (Vertrag: buehne und wach nach didFinish)
+        Bruecke.sende(.buehne(Diagnose.buehne()), an: self)
+        Bruecke.sende(.wach(Diagnose.wach()), an: self)
         let name = rolle.name
-        webView.evaluateJavaScript(Bruecke.pruefSkript) { [weak self] wert, _ in
+        webView.evaluateJavaScript(Bruecke.pruefSkript) { wert, _ in
             let vertrag = wert as? Int ?? 0
-            self?.brueckeInSeite = vertrag > 0
             Protokoll.shared.schreibe("\(name): Brücke in der Seite \(vertrag > 0 ? "ja, Vertrag \(vertrag)" : "nein")")
         }
     }
@@ -217,7 +207,6 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         Zustand.shared.neuladungen += 1
         Protokoll.shared.schreibe("\(rolle.name): Web-Inhalt beendet, lade neu (Neuladungen gesamt \(Zustand.shared.neuladungen))")
-        brueckeInSeite = nil
         if webView.url == nil {
             lade()
         } else {

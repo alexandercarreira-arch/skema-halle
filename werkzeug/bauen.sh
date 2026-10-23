@@ -217,6 +217,14 @@ echo "Weg fuer iPadOS 27: $WEG27"
 echo "::endgroup::"
 halt_bei_rot "Pruefung des Archivs rot"
 
+# 7. Formen der Bruecke, wie Swift sie sendet und liest: build/swift-vertrag.json fuer werkzeug/vertrag.sh
+echo "::group::7 Formen der Bruecke"
+if ! bash werkzeug/swift-vertrag.sh; then
+  rot "Formen der Bruecke nicht erzeugt (werkzeug/swift-vertrag.sh)"
+fi
+echo "::endgroup::"
+halt_bei_rot "Formen der Bruecke fehlen"
+
 {
   echo "### Archiv geprueft"
   echo ""

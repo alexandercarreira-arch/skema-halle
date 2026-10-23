@@ -112,27 +112,34 @@ final class Zustand {
         return neu
     }
 
+    /// TV verbunden oder getrennt: beide Seiten bekommen `buehne` und einmal `wach`, auch wenn sich Wach
+    /// dabei nicht aendert. Laedt die Buehne beim Verbinden noch, bringt ihr `didFinish` beides nach.
     func setzeTv(_ szene: UIWindowScene?) {
         tvSzene = szene
-        aktualisiere()
+        aktualisiere(wachMelden: true)
     }
 
     /// Wach: `isIdleTimerDisabled`, solange die TV-Szene verbunden und eine Regie vorn ist, sonst zurueck
     /// auf `false` (Apple: „reset it to false when the need no longer exists"). Danach das Ereignis
-    /// `buehne` an beide Seiten.
-    func aktualisiere() {
+    /// `buehne` an beide Seiten und, wenn Wach sich aendert oder `wachMelden`, das Ereignis `wach`.
+    func aktualisiere(wachMelden: Bool = false) {
         let regieVorn = UIApplication.shared.connectedScenes.contains { szene in
             szene.session.role == .windowApplication && (szene.activationState == .foregroundActive || szene.activationState == .foregroundInactive)
         }
         let soll = tvSzene != nil && regieVorn
-        if soll != wach {
+        let geaendert = soll != wach
+        if geaendert {
             wach = soll
             UIApplication.shared.isIdleTimerDisabled = soll
             Protokoll.shared.schreibe("Wach: \(soll ? "an" : "aus") (TV \(tvSzene != nil ? "verbunden" : "nicht verbunden"), Regie \(regieVorn ? "vorn" : "nicht vorn"))")
         }
-        let daten = Diagnose.buehne()
+        let tv = Diagnose.buehne()
+        let wachStand = Diagnose.wach()
         for ansicht in [regieWeb, buehneWeb].compactMap({ $0 }) {
-            Bruecke.sende("buehne", daten, an: ansicht)
+            Bruecke.sende(.buehne(tv), an: ansicht)
+            if geaendert || wachMelden {
+                Bruecke.sende(.wach(wachStand), an: ansicht)
+            }
         }
     }
 

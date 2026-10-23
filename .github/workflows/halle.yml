@@ -1,8 +1,9 @@
 # Huelle „SLSHM Coach": Bau, Pruefung und Upload nach TestFlight intern (Bauzettel 50, § 2.5, § 4).
 # Den Namen dieser Datei nie aendern: run_number zaehlt je Workflow, die Baunummer darf nie kleiner werden.
 #
-# Pruef-Job: jeder Push (und Handstart ohne Upload). Kompiliert ohne Signatur, ohne Secrets; der Vertrag
-# der Bruecke gibt hier nur Hinweise. Legt das App-Symbol als Artefakt ab.
+# Pruef-Job: jeder Push (und Handstart ohne Upload). Kompiliert ohne Signatur, ohne Secrets. Der Vertrag
+# der Bruecke ist gegen die Testdatei werkzeug/testdaten/huelle-vertrag.json streng (vertrag-test.sh),
+# gegen den Worker nur ein Hinweis. Legt das App-Symbol als Artefakt ab.
 # Upload-Job: nur von Hand auf main mit hochladen=true, nie auf pull_request; startet nur Alex. Vertrag
 # streng, dann Upload mit den Repository-Secrets ASC_KEY_ID, ASC_ISSUER_ID und ASC_KEY_P8 (PEM-Text).
 #   gh workflow run halle.yml -R alexandercarreira-arch/skema-halle --ref main -f hochladen=true

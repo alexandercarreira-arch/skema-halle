@@ -21,14 +21,16 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 | `Halle/App.swift` | App-Delegate, Regie-Szene, Minutenbericht (Bildraten, Akku, Wärme, Speicher, Wach) |
 | `Halle/TvSzene.swift` | TV-Szene: Overscan `.none`, Bühne randlos, Wach, gemeinsamer Zustand |
 | `Halle/WebAnsicht.swift` | Die zwei WKWebViews: App-Bound Domains, Navigation nur auf der Worker-Domain |
-| `Halle/Bruecke.swift` | Vertrag mit der Web-App: `window.__skemaHuelle`, Ereignisse, Nachrichten |
+| `Halle/Vertrag.swift` | Vertrag mit der Web-App, nur Foundation: Fähigkeiten, Ereignisse und Nachrichten je Rolle, ihre Formen `{ art, daten }`, Lesen der Nachrichten |
+| `Halle/Bruecke.swift` | Brücke in den WebViews: `window.__skemaHuelle`, Ereignisse senden, Nachrichten empfangen |
 | `Halle/Netz.swift` | Nach einem Ladefehler neu laden: bei jeder Pfadmeldung „verbunden“ und wenn die Regie wieder vorn ist |
-| `Halle/Diagnose.swift` | Bau, „gilt bis“, Bildschirm, Modi, Wach, Speicher für den Abschnitt „Hülle“ |
+| `Halle/Diagnose.swift` | Werte der Ereignisse `buehne`, `wach`, `diagnose` (Bildschirm, Modi, Speicher, Wärme, Akku) |
 | `Halle/Protokoll.swift` | Natives Protokoll mit Spiegel ins Systemlog |
 | `werkzeug/erzeuge-icon.py` | Schreibt das App-Symbol aus dem Monogramm (PyMuPDF), RGB ohne Alphakanal; Quelle als Pfad außerhalb des Repos |
-| `werkzeug/bauen.sh` | Bau ohne Signatur und Prüfung des Archivs |
-| `werkzeug/vertrag.sh` | Brücke gegen `huelle-vertrag.json` vom Worker |
-| `werkzeug/vertrag-test.sh` | Prüft `vertrag.sh` ohne Worker mit Dateien aus dem Swift-Stand |
+| `werkzeug/bauen.sh` | Bau ohne Signatur, Prüfung des Archivs, Formen der Brücke |
+| `werkzeug/swift-vertrag.sh`, `.swift` | Übersetzt `Halle/Vertrag.swift` für macOS und schreibt, was Swift sendet und liest, nach `build/swift-vertrag.json` |
+| `werkzeug/vertrag.sh`, `vertrag.jq` | Swift gegen `huelle-vertrag.json` vom Worker, in beide Richtungen, mit Feldern und Typen |
+| `werkzeug/vertrag-test.sh` | Prüft Swift streng gegen eine echte `huelle-vertrag.json` (`werkzeug/testdaten/`) und `vertrag.sh` mit absichtlich falschen Dateien |
 | `werkzeug/hochladen.sh` | Export, Prüfung des IPA, Upload nach App Store Connect |
 | `.github/workflows/halle.yml` | Prüf-Job und Upload-Job |
 | `.github/workflows/ablauf.yml` | Montags: Prüf-Job auf `main`, rot, wenn der letzte Upload älter als 70 Tage ist |
@@ -38,13 +40,19 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 - Swift an Seite beim Laden: `window.__skemaHuelle = { vertrag, rolle, bau, xcode, gebaut, faehigkeiten }`.
   `gebaut` ist der Zeitpunkt des Baus in UTC, ISO 8601 auf die Sekunde (`2026-10-23T09:00:00Z`), lesbar
   für `Date.parse`; `werkzeug/bauen.sh` prüft das am Archiv. Sonst verwirft die Web-App den Start.
-- Swift an Seite: `CustomEvent("skema-huelle", { detail: { typ, daten } })` am `window`, `typ` ist
-  `buehne` oder `diagnose`.
-- Seite an Swift: `window.webkit.messageHandlers.huelle.postMessage({ typ, daten })`, `typ` ist
+- Fähigkeiten: Regie und Bühne melden `wach`, `buehne`, `diagnose`. Die Bühne braucht `diagnose`, damit
+  die Seite ihr Log als `protokoll` schickt.
+- Swift an Seite: `CustomEvent("skema-huelle", { detail: { art, daten } })` am `window`. `buehne` und `wach`
+  an beide nach jedem Laden und bei jeder Änderung (`wach` auch einmal beim Verbinden des TV),
+  `diagnose` als Antwort an die Regie. Ohne TV meldet `buehne` Zahlen 0, leere Texte, `zustand`
+  `unattached`, nie `null`.
+- Seite an Swift: `window.webkit.messageHandlers.huelle.postMessage({ art, daten })`, `art` ist
   `protokoll` (beide) oder `diagnose` (nur Regie).
-- Die Namen stehen in `Halle/Bruecke.swift` in den Zeilen mit `// vertrag:`; `werkzeug/vertrag.sh` prüft sie
-  gegen die veröffentlichte Web-App. Beim Push nur Hinweis, im Upload-Job rot. `bash werkzeug/vertrag.sh --soll`
-  gibt aus, was Swift anmeldet, im Format von `huelle-vertrag.json`.
+- Die Quelle des Vertrags ist `packages/protocol/src/huelle.ts` im privaten Repo; ihr Build liegt als
+  `huelle-vertrag.json` auf dem Worker (Namen, Fähigkeit je Weg, Felder mit Typen). `werkzeug/vertrag.sh`
+  vergleicht sie mit `build/swift-vertrag.json`, das `bauen.sh` aus `Halle/Vertrag.swift` erzeugt: Namen,
+  Umschlag, Start, Fähigkeiten je Rolle, Felder mit Typen, in beide Richtungen. Beim Push nur Hinweis, im
+  Upload-Job rot; gegen die Testdatei in `werkzeug/testdaten/` ist es schon im Prüf-Job rot.
 
 ## App-Symbol
 

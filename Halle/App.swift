@@ -40,7 +40,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private func minutenbericht() {
         let zustand = Zustand.shared
         let freiMB = os_proc_available_memory() / 1_048_576
-        Protokoll.shared.schreibe("Minute: Akku \(akkuText()); Wärme \(waermeText(ProcessInfo.processInfo.thermalState)); frei \(freiMB) MB; Wach \(zustand.wach ? "an" : "aus"); Netz \(Netz.shared.text); Regie-Szenen \(zustand.regieSzenen); Neuladungen \(zustand.neuladungen); TV \(zustand.tvText)")
+        Protokoll.shared.schreibe("Minute: Akku \(akkuText()); Wärme \(waermeText(ProcessInfo.processInfo.thermalState)); App \(Int(speicherDerAppMb())) MB, frei \(freiMB) MB; Wach \(zustand.wach ? "an" : "aus"); Netz \(Netz.shared.text); Regie-Szenen \(zustand.regieSzenen); Neuladungen \(zustand.neuladungen); TV \(zustand.tvText)")
         zustand.regieWeb?.meldeBildrate()
         zustand.buehneWeb?.meldeBildrate()
     }

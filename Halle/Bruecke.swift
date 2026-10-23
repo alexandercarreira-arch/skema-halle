@@ -1,52 +1,31 @@
 import Foundation
 import WebKit
 
-/// Vertrag mit der Web-App (Bauzettel 50, § 2.7). Die Quelle der Namen ist
-/// `packages/protocol/src/huelle.ts` im privaten Repo; der Build legt sie als `huelle-vertrag.json` auf
-/// den Worker. `werkzeug/vertrag.sh` liest die Zeilen mit `// vertrag:` und prueft sie dagegen.
-/// Die Fähigkeiten gelten je Rolle: die Bühne fragt keine Diagnose an (nur die Regie hat das Tafelmenü).
-/// T2 (Stift.swift) ergänzt `stift.doppeltipp`, `stift.squeeze`, `haptik`.
-enum Vertrag {
-    static let nummer = 1 // vertrag:nummer
-    static let faehigkeitenRegie = ["wach", "buehne", "diagnose"] // vertrag:faehigkeiten
-    static let faehigkeitenBuehne = ["wach", "buehne"] // vertrag:faehigkeiten
-    /// Swift an Seite: `CustomEvent("skema-huelle", { detail: { typ, daten } })` am `window`.
-    static let ereignisse = ["buehne", "diagnose"] // vertrag:ereignisse
-    /// Seite an Swift: `window.webkit.messageHandlers.huelle.postMessage({ typ, daten })`.
-    static let nachrichtenRegie = ["diagnose", "protokoll"] // vertrag:nachrichten
-    static let nachrichtenBuehne = ["protokoll"] // vertrag:nachrichten
-
-    static func faehigkeiten(_ rolle: Rolle) -> [String] {
-        rolle == .regie ? faehigkeitenRegie : faehigkeitenBuehne
-    }
-
-    static func nachrichten(_ rolle: Rolle) -> [String] {
-        rolle == .regie ? nachrichtenRegie : nachrichtenBuehne
-    }
-}
-
-/// Die Bruecke selbst: das Skript `window.__skemaHuelle`, Ereignisse an die Seite und der Empfang der
-/// Nachrichten. Nie ueber die Bruecke: Inhalte der Tafel, Eingaben, Dateien (Regel 5, § 2.7).
+/// Die Bruecke zur Web-App (Bauzettel 50, § 2.7): das Skript `window.__skemaHuelle`, Ereignisse an die
+/// Seite und der Empfang der Nachrichten, in den Formen aus Vertrag.swift. Nie ueber die Bruecke: Inhalte
+/// der Tafel, Eingaben, Dateien (Regel 5).
 @MainActor
 enum Bruecke {
+    /// `window.webkit.messageHandlers.huelle`
     static let handler = "huelle"
-    static let ereignis = "skema-huelle"
+    /// Typ des CustomEvent am `window`
+    static let ereignisTyp = "skema-huelle"
 
     /// Laeuft zu Dokumentbeginn im Hauptrahmen vor jedem Modul der Seite; mit App-Bound Domains nur auf
     /// der Worker-Domain. Eingefroren, die Seite kann es nicht ueberschreiben.
     static func skript(_ rolle: Rolle) -> WKUserScript {
-        let werte: [String: Any] = [
-            "vertrag": Vertrag.nummer,
-            "rolle": rolle.rawValue,
-            "bau": Bau.text,
-            "xcode": Bau.xcode,
-            "gebaut": Bau.gebaut,
-            "faehigkeiten": Vertrag.faehigkeiten(rolle),
-        ]
+        let start = Vertrag.start(rolle, bau: Bau.text, xcode: Bau.xcode, gebaut: Bau.gebaut)
+        let wert: String
+        do {
+            wert = try jsonText(start)
+        } catch {
+            Protokoll.shared.schreibe("\(rolle.name): Start nicht als JSON (\(error)), die Seite läuft wie im Browser")
+            wert = "null"
+        }
         let quelle = """
             (function () {
-              if (window.__skemaHuelle) { return; }
-              var huelle = \(json(werte));
+              var huelle = \(wert);
+              if (window.__skemaHuelle || !huelle) { return; }
               Object.freeze(huelle.faehigkeiten);
               Object.defineProperty(window, "__skemaHuelle", { value: Object.freeze(huelle), writable: false, configurable: false, enumerable: false });
             })();
@@ -57,18 +36,31 @@ enum Bruecke {
     /// Prueft nach dem Laden, ob das Skript angekommen ist (RH50-2: App-Bound Domains falsch eingerichtet).
     static let pruefSkript = "(window.__skemaHuelle && window.__skemaHuelle.vertrag) || 0"
 
-    /// Ereignis an eine Seite. Laedt die Seite gerade, geht es verloren; nach dem Laden schickt
-    /// WebAnsicht den Stand von selbst.
-    static func sende(_ typ: String, _ daten: [String: Any], an ansicht: WebAnsicht) {
-        let detail = json(["typ": typ, "daten": daten])
+    /// Ereignis an eine Seite, nur wenn es zu ihrer Rolle gehoert (`Vertrag.ereignisse`). Laedt die Seite
+    /// gerade, geht es verloren; nach dem Laden schickt WebAnsicht `buehne` und `wach` von selbst.
+    static func sende(_ ereignis: Ereignis, an ansicht: WebAnsicht) {
         let name = ansicht.rolle.name
-        ansicht.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent(\"\(ereignis)\", { detail: \(detail) })); true") { _, fehler in
+        let art = ereignis.art.rawValue
+        guard Vertrag.ereignisse(ansicht.rolle).contains(ereignis.art) else {
+            Protokoll.shared.schreibe("\(name): Ereignis \(art) gehört nicht zu dieser Rolle, nicht gesendet")
+            return
+        }
+        let detail: String
+        do {
+            detail = try ereignis.json()
+        } catch {
+            Protokoll.shared.schreibe("\(name): Ereignis \(art) nicht als JSON: \(error)")
+            return
+        }
+        ansicht.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent(\"\(ereignisTyp)\", { detail: \(detail) })); true") { _, fehler in
             if let fehler {
-                Protokoll.shared.schreibe("\(name): Ereignis \(typ) nicht zugestellt: \(fehlerText(fehler))")
+                Protokoll.shared.schreibe("\(name): Ereignis \(art) nicht zugestellt: \(fehlerText(fehler))")
             }
         }
     }
 
+    /// Nachricht der Seite: nur aus dem Hauptrahmen der Worker-Domain, nur `{ art, daten }` mit den Typen
+    /// des Vertrags, nur was diese Rolle senden darf (`Vertrag.nachrichten`).
     static func empfange(_ nachricht: WKScriptMessage, von ansicht: WebAnsicht) {
         let name = ansicht.rolle.name
         let rahmen = nachricht.frameInfo
@@ -76,36 +68,22 @@ enum Bruecke {
             Protokoll.shared.schreibe("\(name): Nachricht von fremdem Rahmen verworfen (\(rahmen.securityOrigin.`protocol`)://\(rahmen.securityOrigin.host))")
             return
         }
-        guard let roh = nachricht.body as? [String: Any], let typ = roh["typ"] as? String else {
-            Protokoll.shared.schreibe("\(name): Nachricht ohne typ verworfen")
+        let gelesen: Nachricht
+        do {
+            gelesen = try Nachricht.lies(nachricht.body)
+        } catch {
+            Protokoll.shared.schreibe("\(name): Nachricht verworfen, \(lesefehlerText(error))")
             return
         }
-        guard Vertrag.nachrichten(ansicht.rolle).contains(typ) else {
-            Protokoll.shared.schreibe("\(name): Nachricht \(kurz(typ, 40)) nicht im Vertrag, verworfen")
+        guard Vertrag.nachrichten(ansicht.rolle).contains(gelesen.art) else {
+            Protokoll.shared.schreibe("\(name): Nachricht \(gelesen.art.rawValue) kommt nicht aus dieser Rolle, verworfen")
             return
         }
-        let daten = roh["daten"] as? [String: Any] ?? [:]
-        switch typ {
-        case "protokoll":
-            let stufe = daten["stufe"] as? String ?? "?"
-            let text = daten["text"] as? String ?? ""
-            Protokoll.shared.schreibe("\(name) [\(kurz(stufe, 12))] \(kurz(text, 500))")
-        case "diagnose":
-            sende("diagnose", Diagnose.daten(fuer: ansicht.rolle), an: ansicht)
-        default:
-            break
+        switch gelesen {
+        case .protokoll(let daten):
+            Protokoll.shared.schreibe("\(name) [\(kurz(daten.stufe, 12))] \(kurz(daten.text, 500))")
+        case .diagnose:
+            sende(.diagnose(Diagnose.daten()), an: ansicht)
         }
     }
-}
-
-/// Wert als JSON-Text, der zugleich ein gueltiger JS-Ausdruck ist.
-func json(_ wert: Any) -> String {
-    guard JSONSerialization.isValidJSONObject(wert),
-          let daten = try? JSONSerialization.data(withJSONObject: wert, options: [.sortedKeys]),
-          let text = String(data: daten, encoding: .utf8)
-    else {
-        Protokoll.shared.schreibe("JSON nicht möglich, sende null")
-        return "null"
-    }
-    return text
 }

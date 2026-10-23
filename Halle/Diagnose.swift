@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import UIKit
 import os
@@ -30,64 +31,77 @@ enum Bau {
     }
 }
 
-/// Inhalt der Ereignisse `diagnose` und `buehne` an die Seite (Bauzettel 50, § 2.7, § 3.1 Diagnose).
-/// Nur Rohwerte; Darstellung und Bewertung liegen in der Web-App (Abschnitt „Hülle").
+/// Inhalt der Ereignisse `buehne`, `wach` und `diagnose` an die Seite (Bauzettel 50, § 2.7, § 3.1
+/// Diagnose), in den Formen aus Vertrag.swift. Nur Rohwerte; Darstellung und Bewertung liegen in der
+/// Web-App (Abschnitt „Hülle"). Was der Vertrag nicht nennt (Netz, Neuladungen, Brücke in der Seite),
+/// steht im nativen Protokoll, das `diagnose` mitbringt.
 @MainActor
 enum Diagnose {
     /// Antwort auf die Nachricht `diagnose` der Regie.
-    static func daten(fuer rolle: Rolle) -> [String: Any] {
-        let zustand = Zustand.shared
-        return [
-            "bau": Bau.text,
-            "xcode": Bau.xcode,
-            "gebaut": Bau.gebaut,
-            "giltBis": oderNull(Bau.giltBis),
-            "vertrag": Vertrag.nummer,
-            "faehigkeiten": Vertrag.faehigkeiten(rolle),
-            "ipados": UIDevice.current.systemVersion,
-            "regieSzenen": zustand.regieSzenen,
-            "buehne": buehne(),
-            "wach": zustand.wach,
-            "speicherFreiMB": Int(os_proc_available_memory() / 1_048_576),
-            "waerme": waermeText(ProcessInfo.processInfo.thermalState),
-            "akku": akkuText(),
-            "netz": Netz.shared.text,
-            "neuladungen": zustand.neuladungen,
-            "brueckeInSeite": [
-                "regie": oderNull(zustand.regieWeb?.brueckeInSeite),
-                "buehne": oderNull(zustand.buehneWeb?.brueckeInSeite),
-            ],
-            "protokoll": Protokoll.shared.letzte(200),
-        ]
+    static func daten() -> DiagnoseDaten {
+        let geraet = UIDevice.current
+        return DiagnoseDaten(
+            regieSzenen: Zustand.shared.regieSzenen,
+            speicherMb: speicherDerAppMb(),
+            waerme: waermeText(ProcessInfo.processInfo.thermalState),
+            akku: akkuProzent(geraet.batteryLevel),
+            laden: ladenText(geraet.batteryState),
+            protokoll: Protokoll.shared.letzte(200)
+        )
     }
 
-    /// Stand der TV-Szene; ohne TV sind die Werte des Bildschirms `null`.
-    static func buehne() -> [String: Any] {
-        let zustand = Zustand.shared
-        guard let szene = zustand.tvSzene else {
-            return [
-                "verbunden": false, "breite": NSNull(), "hoehe": NSNull(), "faktor": NSNull(), "modus": NSNull(),
-                "modi": [String](), "overscan": NSNull(), "zustand": "nicht verbunden", "wach": zustand.wach,
-            ]
+    /// Stand der TV-Szene; ohne TV `BuehneDaten.ohneTv`, ohne Modus ein leerer Text, nie `null`.
+    static func buehne() -> BuehneDaten {
+        guard let szene = Zustand.shared.tvSzene else {
+            return .ohneTv
         }
         let bildschirm = szene.screen
-        return [
-            "verbunden": true,
-            "breite": Int(bildschirm.bounds.width),
-            "hoehe": Int(bildschirm.bounds.height),
-            "faktor": Double(bildschirm.scale),
-            "modus": oderNull(bildschirm.currentMode.map { modusText($0) }),
-            "modi": bildschirm.availableModes.map { modusText($0) },
-            "overscan": overscanText(bildschirm.overscanCompensation),
-            "zustand": zustandText(szene.activationState),
-            "wach": zustand.wach,
-        ]
+        return BuehneDaten(
+            verbunden: true,
+            breite: Double(bildschirm.bounds.width),
+            hoehe: Double(bildschirm.bounds.height),
+            faktor: Double(bildschirm.scale),
+            modus: bildschirm.currentMode.map { modusText($0) } ?? "",
+            modi: bildschirm.availableModes.map { modusText($0) },
+            overscan: overscanText(bildschirm.overscanCompensation),
+            zustand: zustandText(szene.activationState)
+        )
+    }
+
+    /// Ob Swift den Bildschirm wach haelt.
+    static func wach() -> WachDaten {
+        WachDaten(aktiv: Zustand.shared.wach)
     }
 }
 
-/// JSON kennt kein `nil`: fehlende Werte gehen als `null` an die Seite.
-func oderNull(_ wert: Any?) -> Any {
-    wert ?? NSNull()
+/// Speicher der App in MB (`phys_footprint`, so zaehlt auch das System); -1, wenn der Kern ihn nicht nennt.
+func speicherDerAppMb() -> Double {
+    var info = task_vm_info_data_t()
+    var anzahl = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+    let ergebnis = withUnsafeMutablePointer(to: &info) { zeiger in
+        zeiger.withMemoryRebound(to: integer_t.self, capacity: Int(anzahl)) { roh in
+            task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), roh, &anzahl)
+        }
+    }
+    guard ergebnis == KERN_SUCCESS else {
+        return -1
+    }
+    return (Double(info.phys_footprint) / 1_048_576).rounded()
+}
+
+/// `UIDevice.batteryLevel` (0 bis 1, -1 unbekannt) in Prozent, -1 unbekannt.
+func akkuProzent(_ stand: Float) -> Int {
+    stand < 0 ? -1 : Int((stand * 100).rounded())
+}
+
+func ladenText(_ zustand: UIDevice.BatteryState) -> String {
+    switch zustand {
+    case .unknown: return "unknown"
+    case .unplugged: return "unplugged"
+    case .charging: return "charging"
+    case .full: return "full"
+    @unknown default: return "unknown"
+    }
 }
 
 @MainActor
@@ -124,19 +138,12 @@ func waermeText(_ zustand: ProcessInfo.ThermalState) -> String {
     }
 }
 
+/// Akku fuer das Protokoll, mit den Werten der Diagnose.
 @MainActor
 func akkuText() -> String {
     let geraet = UIDevice.current
-    let stand = geraet.batteryLevel < 0 ? "unbekannt" : "\(Int((geraet.batteryLevel * 100).rounded())) %"
-    let laden: String
-    switch geraet.batteryState {
-    case .charging: laden = "lädt"
-    case .full: laden = "voll"
-    case .unplugged: laden = "nicht angeschlossen"
-    case .unknown: laden = "unbekannt"
-    @unknown default: laden = "unbekannt"
-    }
-    return "\(stand), \(laden)"
+    let prozent = akkuProzent(geraet.batteryLevel)
+    return "\(prozent < 0 ? "unbekannt" : "\(prozent) %"), \(ladenText(geraet.batteryState))"
 }
 
 /// Bildschirm der TV-Szene fuer das Protokoll.
