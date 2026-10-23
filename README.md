@@ -25,8 +25,7 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 | `Halle/Netz.swift` | Nach einem Ladefehler neu laden: bei jeder Pfadmeldung „verbunden“ und wenn die Regie wieder vorn ist |
 | `Halle/Diagnose.swift` | Bau, „gilt bis“, Bildschirm, Modi, Wach, Speicher für den Abschnitt „Hülle“ |
 | `Halle/Protokoll.swift` | Natives Protokoll mit Spiegel ins Systemlog |
-| `symbol/slshm-monogramm.pdf` | Quelle des App-Symbols: das SLSHM-Monogramm (Eigentum des Vereins) |
-| `werkzeug/erzeuge-icon.py` | Schreibt das App-Symbol aus dem Monogramm (PyMuPDF), RGB ohne Alphakanal |
+| `werkzeug/erzeuge-icon.py` | Schreibt das App-Symbol aus dem Monogramm (PyMuPDF), RGB ohne Alphakanal; Quelle als Pfad außerhalb des Repos |
 | `werkzeug/bauen.sh` | Bau ohne Signatur und Prüfung des Archivs |
 | `werkzeug/vertrag.sh` | Brücke gegen `huelle-vertrag.json` vom Worker |
 | `werkzeug/vertrag-test.sh` | Prüft `vertrag.sh` ohne Worker mit Dateien aus dem Swift-Stand |
@@ -44,6 +43,19 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 - Die Namen stehen in `Halle/Bruecke.swift` in den Zeilen mit `// vertrag:`; `werkzeug/vertrag.sh` prüft sie
   gegen die veröffentlichte Web-App. Beim Push nur Hinweis, im Upload-Job rot. `bash werkzeug/vertrag.sh --soll`
   gibt aus, was Swift anmeldet, im Format von `huelle-vertrag.json`.
+
+## App-Symbol
+
+`Halle/Assets.xcassets/AppIcon.appiconset/icon-1024.png` ist eingecheckt; der Bau braucht nur das PNG.
+Die Quelle, das SLSHM-Monogramm (Eigentum des Vereins) als Illustrator-Datei, liegt nicht im Repo
+(`.gitignore`: `symbol/`, `*.ai`). Neu erzeugt wird das PNG am PC mit der Quelle aus einem lokalen Pfad
+außerhalb des Repos (braucht `pip install pymupdf`):
+
+```
+python werkzeug/erzeuge-icon.py PFAD/ZUR/QUELLE.ai
+```
+
+Ein Pfad im Repo wird abgelehnt.
 
 ## Bau und Upload
 

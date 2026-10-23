@@ -4,3 +4,6 @@
 build/
 DerivedData/
 *.xcodeproj/
+# Quellen des App-Symbols (Illustrator, Metadaten) liegen nie im oeffentlichen Repo, siehe werkzeug/erzeuge-icon.py
+symbol/
+*.ai
