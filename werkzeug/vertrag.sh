@@ -3,9 +3,10 @@
 # Vergleicht huelle-vertrag.json vom Worker (Build von packages/protocol/src/huelle.ts, die einzige
 # Quelle) mit den Formen, die Swift tatsaechlich sendet und liest (build/swift-vertrag.json, erzeugt von
 # werkzeug/swift-vertrag.sh), in beide Richtungen (werkzeug/vertrag.jq): Nummer, Umschlag { art, daten },
-# Start, Faehigkeiten je Rolle, Ereignisse und Nachrichten mit Faehigkeit, Felder mit Typen.
+# Start, Faehigkeiten je Rolle, Ereignisse und Nachrichten mit Faehigkeit, Felder mit Typen, Werte der
+# Texte mit fester Liste (Einstellung und Phase des Stifts, Art der Haptik).
 # Format der Datei: { vertrag, rollen, faehigkeiten, typen, umschlag: { feld: typ }, start: { feld: typ },
-#   ereignisse: { art: { faehigkeit, felder: { feld: typ } } }, nachrichten: { ebenso }, ... }
+#   ereignisse: { art: { faehigkeit, felder: { feld: typ } } }, nachrichten: { ebenso }, werte, ... }
 # Ohne --streng (Pruef-Job) ist jede Abweichung nur ein Hinweis, damit „Swift vor Web" beim Bauen geht;
 # mit --streng (Upload-Job) ist sie rot: kein Testbau geht hoch, den die veroeffentlichte Web-App nicht kennt.
 # --datei PFAD prueft eine Datei statt der vom Worker, --swift PFAD andere Formen von Swift
@@ -66,6 +67,7 @@ ende() {
 
 echo "Swift: Vertrag $(jq -r .vertrag "$SWIFT")"
 jq -r '.rollen | to_entries[] | "Swift \(.key): Faehigkeiten \(.value.faehigkeiten | join(", ")); sendet \(.value.ereignisse | join(", ")); liest \(.value.nachrichten | join(", "))"' "$SWIFT"
+jq -r '(.werte // {}) | to_entries[] | "Swift Werte \(.key): \(.value | join(", "))"' "$SWIFT"
 
 if [ -n "$VORGABE" ]; then
   ADRESSE="$VORGABE"

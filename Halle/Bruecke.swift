@@ -36,8 +36,9 @@ enum Bruecke {
     /// Prueft nach dem Laden, ob das Skript angekommen ist (RH50-2: App-Bound Domains falsch eingerichtet).
     static let pruefSkript = "(window.__skemaHuelle && window.__skemaHuelle.vertrag) || 0"
 
-    /// Ereignis an eine Seite, nur wenn es zu ihrer Rolle gehoert (`Vertrag.ereignisse`). Laedt die Seite
-    /// gerade, geht es verloren; nach dem Laden schickt WebAnsicht `buehne` und `wach` von selbst.
+    /// Ereignis an eine Seite, nur wenn es zu ihrer Rolle gehoert (`Vertrag.ereignisse`; `stift.*` nur an die
+    /// Regie, aus Stift.swift). Laedt die Seite gerade, geht es verloren; nach dem Laden schickt WebAnsicht
+    /// `buehne` und `wach` von selbst.
     static func sende(_ ereignis: Ereignis, an ansicht: WebAnsicht) {
         let name = ansicht.rolle.name
         let art = ereignis.art.rawValue
@@ -60,7 +61,8 @@ enum Bruecke {
     }
 
     /// Nachricht der Seite: nur aus dem Hauptrahmen der Worker-Domain, nur `{ art, daten }` mit den Typen
-    /// des Vertrags, nur was diese Rolle senden darf (`Vertrag.nachrichten`).
+    /// des Vertrags, nur was diese Rolle senden darf (`Vertrag.nachrichten`; `haptik` nur aus der Regie,
+    /// dort spielt sie Stift.swift).
     static func empfange(_ nachricht: WKScriptMessage, von ansicht: WebAnsicht) {
         let name = ansicht.rolle.name
         let rahmen = nachricht.frameInfo
@@ -72,7 +74,8 @@ enum Bruecke {
         do {
             gelesen = try Nachricht.lies(nachricht.body)
         } catch {
-            Protokoll.shared.schreibe("\(name): Nachricht verworfen, \(lesefehlerText(error))")
+            // auch eine haptik mit anderem typ als form oder ausrichtung (Vertrag werte.haptikTyp)
+            Protokoll.shared.schreibe("\(name): Nachricht verworfen, \(kurz(lesefehlerText(error)))")
             return
         }
         guard Vertrag.nachrichten(ansicht.rolle).contains(gelesen.art) else {
@@ -84,6 +87,12 @@ enum Bruecke {
             Protokoll.shared.schreibe("\(name) [\(kurz(daten.stufe, 12))] \(kurz(daten.text, 500))")
         case .diagnose:
             sende(.diagnose(Diagnose.daten()), an: ansicht)
+        case .haptik(let daten):
+            guard let stift = ansicht.stift else {
+                Protokoll.shared.schreibe("\(name): Haptik ohne Stift an dieser Ansicht, verworfen")
+                return
+            }
+            stift.spiele(daten)
         }
     }
 }

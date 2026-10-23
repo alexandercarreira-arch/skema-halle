@@ -51,6 +51,8 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     /// Das letzte Laden scheiterte am Netz. Neu geladen wird bei jeder Pfadmeldung „verbunden"
     /// (Netz.swift) und wenn die Regie wieder nach vorn kommt (App.swift `sceneWillEnterForeground`).
     private var wartetAufNetz = false
+    /// Doppeltipp, Squeeze und Haptik (Stift.swift), nur an der Regie; die Buehne hat keinen.
+    private(set) var stift: Stift?
 
     init(rolle: Rolle) {
         self.rolle = rolle
@@ -74,6 +76,9 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
         webView.scrollView.delegate = self
+        if rolle == .regie {
+            stift = Stift(self)
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(netzVerbunden), name: Netz.verbunden, object: nil)
         lade()
     }

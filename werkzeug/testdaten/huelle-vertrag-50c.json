@@ -1,0 +1,141 @@
+{
+  "vertrag": 1,
+  "web": "f38df7b+50c",
+  "global": "__skemaHuelle",
+  "ereignis": "skema-huelle",
+  "handler": "huelle",
+  "testbauTage": 90,
+  "rollen": [
+    "regie",
+    "buehne"
+  ],
+  "faehigkeiten": [
+    "wach",
+    "buehne",
+    "diagnose",
+    "stift.doppeltipp",
+    "stift.squeeze",
+    "haptik",
+    "liefern.nativ"
+  ],
+  "typen": [
+    "bool",
+    "zahl",
+    "text",
+    "texte",
+    "objekt"
+  ],
+  "umschlag": {
+    "art": "text",
+    "daten": "objekt"
+  },
+  "ereignisse": {
+    "buehne": {
+      "faehigkeit": "buehne",
+      "felder": {
+        "verbunden": "bool",
+        "breite": "zahl",
+        "hoehe": "zahl",
+        "faktor": "zahl",
+        "modus": "text",
+        "modi": "texte",
+        "overscan": "text",
+        "zustand": "text"
+      }
+    },
+    "wach": {
+      "faehigkeit": "wach",
+      "felder": {
+        "aktiv": "bool"
+      }
+    },
+    "diagnose": {
+      "faehigkeit": "diagnose",
+      "felder": {
+        "regieSzenen": "zahl",
+        "speicherMb": "zahl",
+        "waerme": "text",
+        "akku": "zahl",
+        "laden": "text",
+        "protokoll": "texte"
+      }
+    },
+    "stift.doppeltipp": {
+      "faehigkeit": "stift.doppeltipp",
+      "felder": {
+        "einstellung": "text",
+        "x?": "zahl",
+        "y?": "zahl"
+      }
+    },
+    "stift.squeeze": {
+      "faehigkeit": "stift.squeeze",
+      "felder": {
+        "phase": "text",
+        "einstellung": "text",
+        "x?": "zahl",
+        "y?": "zahl"
+      }
+    }
+  },
+  "nachrichten": {
+    "haptik": {
+      "faehigkeit": "haptik",
+      "felder": {
+        "typ": "text",
+        "x": "zahl",
+        "y": "zahl"
+      }
+    },
+    "diagnose": {
+      "faehigkeit": "diagnose",
+      "felder": {}
+    },
+    "protokoll": {
+      "faehigkeit": "diagnose",
+      "felder": {
+        "stufe": "text",
+        "text": "text"
+      }
+    }
+  },
+  "start": {
+    "vertrag": "zahl",
+    "rolle": "text",
+    "bau": "text",
+    "xcode": "text",
+    "gebaut": "text",
+    "faehigkeiten": "texte"
+  },
+  "gebaut": {
+    "format": "ISO 8601, UTC, auf die Sekunde",
+    "muster": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+    "beispiel": "2026-10-23T09:00:00Z"
+  },
+  "werte": {
+    "stiftEinstellung": [
+      "ignore",
+      "switchEraser",
+      "switchPrevious",
+      "showColorPalette",
+      "showInkAttributes",
+      "showContextualPalette",
+      "runSystemShortcut"
+    ],
+    "squeezePhase": [
+      "began",
+      "changed",
+      "ended",
+      "cancelled"
+    ],
+    "haptikTyp": [
+      "form",
+      "ausrichtung"
+    ],
+    "protokollStufe": [
+      "info",
+      "warn",
+      "fehler"
+    ]
+  }
+}

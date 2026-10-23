@@ -2,7 +2,7 @@
 # packages/protocol/src/huelle.ts) und den Formen, die Swift sendet und liest ($s: build/swift-vertrag.json
 # aus werkzeug/swift-vertrag.sh), je eine Zeile, in beide Richtungen. Aufruf aus werkzeug/vertrag.sh:
 #   jq -n -r --slurpfile w VERTRAG --slurpfile s SWIFT -f werkzeug/vertrag.jq
-# Felder sind Name auf Typ; ein ? am Ende des Namens heisst Kann-Feld.
+# Felder sind Name auf Typ; ein ? am Ende des Namens heisst Kann-Feld. werte sind Listen erlaubter Texte.
 
 def form:
   to_entries
@@ -72,4 +72,13 @@ $w[0] as $w
     | felder("Nachricht \($n)"; $w.nachrichten[$n].felder; $s.nachrichten[$n]) ),
   # Typen, die der Vertrag nicht kennt (etwa null), auch auf Wegen ohne Gegenstueck im Vertrag
   ( [ $s.umschlag[], $s.start[], ($s.ereignisse[] | .[]), ($s.nachrichten[] | .[]) ] | unique - $w.typen | .[]
-    | "Typ \(.): Swift sendet oder liest ihn, der Vertrag kennt ihn nicht" )
+    | "Typ \(.): Swift sendet oder liest ihn, der Vertrag kennt ihn nicht" ),
+  # Texte mit fester Liste (werte: Einstellung und Phase des Stifts, Art der Haptik), in beide Richtungen;
+  # Swift nennt nur die Listen, die es nutzt
+  ( ($s.werte // {}) | to_entries[] | .key as $k | .value as $sw
+    | if ($w.werte[$k] | type) != "array" then
+        "Werte \($k): Swift nutzt sie, der Vertrag nennt sie nicht"
+      else
+        ( $sw - $w.werte[$k] | .[] | "Werte \($k): \(.) gibt es nur bei Swift, der Vertrag kennt ihn nicht" ),
+        ( $w.werte[$k] - $sw | .[] | "Werte \($k): \(.) fehlt bei Swift" )
+      end )

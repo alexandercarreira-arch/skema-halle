@@ -20,28 +20,29 @@ enum Vertrag {
     static let nummer = 1
 
     /// Was die Huelle der Seite meldet. Beide Rollen melden `diagnose`: die Seite sendet `protokoll` nur mit
-    /// dieser Faehigkeit, sonst kaeme das Log der Buehne nie ins native Protokoll. T2 (Stift.swift) ergaenzt
-    /// die Regie um `stift.doppeltipp`, `stift.squeeze` und `haptik`.
+    /// dieser Faehigkeit, sonst kaeme das Log der Buehne nie ins native Protokoll. Seit T2 meldet die Regie
+    /// dazu `stift.doppeltipp`, `stift.squeeze` und `haptik` (Stift.swift haengt nur an der Regie-WebView).
     static func faehigkeiten(_ rolle: Rolle) -> [String] {
         switch rolle {
-        case .regie: return ["wach", "buehne", "diagnose"]
+        case .regie: return ["wach", "buehne", "diagnose", "stift.doppeltipp", "stift.squeeze", "haptik"]
         case .buehne: return ["wach", "buehne", "diagnose"]
         }
     }
 
     /// Ereignisse an diese Rolle; `Bruecke.sende` sendet keine anderen. `buehne` und `wach` an beide,
-    /// `diagnose` nur an die Regie, als Antwort auf ihre Nachricht.
+    /// `diagnose` nur an die Regie, als Antwort auf ihre Nachricht; `stift.*` nur an die Regie.
     static func ereignisse(_ rolle: Rolle) -> [Ereignis.Art] {
         switch rolle {
-        case .regie: return [.buehne, .wach, .diagnose]
+        case .regie: return [.buehne, .wach, .diagnose, .stiftDoppeltipp, .stiftSqueeze]
         case .buehne: return [.buehne, .wach]
         }
     }
 
-    /// Nachrichten, die Swift von dieser Rolle annimmt: `diagnose` nur aus der Regie, `protokoll` aus beiden.
+    /// Nachrichten, die Swift von dieser Rolle annimmt: `diagnose` und `haptik` nur aus der Regie,
+    /// `protokoll` aus beiden.
     static func nachrichten(_ rolle: Rolle) -> [Nachricht.Art] {
         switch rolle {
-        case .regie: return [.diagnose, .protokoll]
+        case .regie: return [.diagnose, .protokoll, .haptik]
         case .buehne: return [.protokoll]
         }
     }
@@ -119,16 +120,91 @@ struct ProtokollDaten: Codable {
 /// Daten einer Nachricht ohne Felder (`diagnose`): ein leeres Objekt.
 struct LeereDaten: Codable {}
 
+/// Einstellung des Nutzers fuer Doppeltipp oder Squeeze, roh als Name des Falls von
+/// `UIPencilPreferredAction` (Vertrag `werte.stiftEinstellung`); die Abbildung auf die Tafel liegt in der
+/// Web-App. Stift.swift bildet die UIKit-Faelle hierauf ab; einen Fall, den es hier nicht gibt, sendet
+/// Swift nicht (die Seite verwuerfe das Ereignis).
+enum StiftEinstellung: String, Codable, CaseIterable {
+    case ignore
+    case switchEraser
+    case switchPrevious
+    case showColorPalette
+    case showInkAttributes
+    case showContextualPalette
+    case runSystemShortcut
+}
+
+/// Phase einer Squeeze, roh als Name des Falls von `UIPencilInteraction.Phase` (Vertrag `werte.squeezePhase`).
+enum SqueezePhase: String, Codable, CaseIterable {
+    case began
+    case changed
+    case ended
+    case cancelled
+}
+
+/// Art der Haptik (Vertrag `werte.haptikTyp`): `form` an `pathCompleted(at:)`, `ausrichtung` an
+/// `alignmentOccurred(at:)`. Ein anderer Text macht die Nachricht unlesbar, Swift verwirft und protokolliert sie.
+enum HaptikTyp: String, Codable, CaseIterable {
+    case form
+    case ausrichtung
+}
+
+/// Punkt der Hover-Pose in CSS-px der Regie.
+struct StiftPunkt {
+    let x: Double
+    let y: Double
+}
+
+/// Ereignis `stift.doppeltipp`. Ohne Pose fehlen `x` und `y` auf dem Draht (nie `null`, nie nur einer):
+/// der Kodierer laesst ein leeres Optional weg, und beide kommen nur zusammen aus einem `StiftPunkt`.
+struct StiftDoppeltippDaten: Codable {
+    let einstellung: StiftEinstellung
+    let x: Double?
+    let y: Double?
+
+    init(einstellung: StiftEinstellung, punkt: StiftPunkt?) {
+        self.einstellung = einstellung
+        x = punkt?.x
+        y = punkt?.y
+    }
+}
+
+/// Ereignis `stift.squeeze`, jede Phase; Punkt wie beim Doppeltipp.
+struct StiftSqueezeDaten: Codable {
+    let phase: SqueezePhase
+    let einstellung: StiftEinstellung
+    let x: Double?
+    let y: Double?
+
+    init(phase: SqueezePhase, einstellung: StiftEinstellung, punkt: StiftPunkt?) {
+        self.phase = phase
+        self.einstellung = einstellung
+        x = punkt?.x
+        y = punkt?.y
+    }
+}
+
+/// Nachricht `haptik` der Regie: Art und Punkt in CSS-px der Regie, alle Felder Pflicht.
+struct HaptikDaten: Codable {
+    let typ: HaptikTyp
+    let x: Double
+    let y: Double
+}
+
 /// Was Swift an die Seite sendet.
 enum Ereignis {
     case buehne(BuehneDaten)
     case wach(WachDaten)
     case diagnose(DiagnoseDaten)
+    case stiftDoppeltipp(StiftDoppeltippDaten)
+    case stiftSqueeze(StiftSqueezeDaten)
 
     enum Art: String, CaseIterable {
         case buehne
         case wach
         case diagnose
+        case stiftDoppeltipp = "stift.doppeltipp"
+        case stiftSqueeze = "stift.squeeze"
     }
 
     var art: Art {
@@ -136,6 +212,8 @@ enum Ereignis {
         case .buehne: return .buehne
         case .wach: return .wach
         case .diagnose: return .diagnose
+        case .stiftDoppeltipp: return .stiftDoppeltipp
+        case .stiftSqueeze: return .stiftSqueeze
         }
     }
 
@@ -145,6 +223,8 @@ enum Ereignis {
         case .buehne(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
         case .wach(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
         case .diagnose(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
+        case .stiftDoppeltipp(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
+        case .stiftSqueeze(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
         }
     }
 }
@@ -153,16 +233,19 @@ enum Ereignis {
 enum Nachricht {
     case diagnose(LeereDaten)
     case protokoll(ProtokollDaten)
+    case haptik(HaptikDaten)
 
     enum Art: String, CaseIterable {
         case diagnose
         case protokoll
+        case haptik
     }
 
     var art: Art {
         switch self {
         case .diagnose: return .diagnose
         case .protokoll: return .protokoll
+        case .haptik: return .haptik
         }
     }
 
@@ -171,6 +254,7 @@ enum Nachricht {
         switch self {
         case .diagnose(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
         case .protokoll(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
+        case .haptik(let daten): return try jsonText(Umschlag(art: art.rawValue, daten: daten))
         }
     }
 
@@ -189,6 +273,7 @@ enum Nachricht {
         switch art {
         case .diagnose: return .diagnose(try leser.decode(Umschlag<LeereDaten>.self, from: json).daten)
         case .protokoll: return .protokoll(try leser.decode(Umschlag<ProtokollDaten>.self, from: json).daten)
+        case .haptik: return .haptik(try leser.decode(Umschlag<HaptikDaten>.self, from: json).daten)
         }
     }
 }
@@ -221,7 +306,8 @@ func lesefehlerText(_ fehler: Error) -> String {
     case .typeMismatch(_, let kontext), .valueNotFound(_, let kontext):
         return "Feld \(pfadText(kontext.codingPath)) hat einen anderen Typ"
     case .dataCorrupted(let kontext):
-        return "unlesbar: \(kontext.debugDescription)"
+        // etwa ein Text ausserhalb der Werte des Vertrags (haptik mit anderem typ): Feld und Grund
+        return kontext.codingPath.isEmpty ? "unlesbar: \(kontext.debugDescription)" : "Feld \(pfadText(kontext.codingPath)) unlesbar: \(kontext.debugDescription)"
     @unknown default:
         return "\(fehler)"
     }

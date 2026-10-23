@@ -21,6 +21,7 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 | `Halle/App.swift` | App-Delegate, Regie-Szene, Minutenbericht (Bildraten, Akku, Wärme, Speicher, Wach) |
 | `Halle/TvSzene.swift` | TV-Szene: Overscan `.none`, Bühne randlos, Wach, gemeinsamer Zustand |
 | `Halle/WebAnsicht.swift` | Die zwei WKWebViews: App-Bound Domains, Navigation nur auf der Worker-Domain |
+| `Halle/Stift.swift` | T2: Doppeltipp und Squeeze des Apple Pencil an der Regie-WebView, Haptik über `UICanvasFeedbackGenerator` |
 | `Halle/Vertrag.swift` | Vertrag mit der Web-App, nur Foundation: Fähigkeiten, Ereignisse und Nachrichten je Rolle, ihre Formen `{ art, daten }`, Lesen der Nachrichten |
 | `Halle/Bruecke.swift` | Brücke in den WebViews: `window.__skemaHuelle`, Ereignisse senden, Nachrichten empfangen |
 | `Halle/Netz.swift` | Nach einem Ladefehler neu laden: bei jeder Pfadmeldung „verbunden“ und wenn die Regie wieder vorn ist |
@@ -30,7 +31,7 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 | `werkzeug/bauen.sh` | Bau ohne Signatur, Prüfung des Archivs, Formen der Brücke |
 | `werkzeug/swift-vertrag.sh`, `.swift` | Übersetzt `Halle/Vertrag.swift` für macOS und schreibt, was Swift sendet und liest, nach `build/swift-vertrag.json` |
 | `werkzeug/vertrag.sh`, `vertrag.jq` | Swift gegen `huelle-vertrag.json` vom Worker, in beide Richtungen, mit Feldern und Typen |
-| `werkzeug/vertrag-test.sh` | Prüft Swift streng gegen eine echte `huelle-vertrag.json` (`werkzeug/testdaten/`) und `vertrag.sh` mit absichtlich falschen Dateien |
+| `werkzeug/vertrag-test.sh` | Prüft Swift streng gegen echte `huelle-vertrag.json` (`werkzeug/testdaten/`: Web auf `main` und Web 50c) und `vertrag.sh` mit absichtlich falschen Dateien |
 | `werkzeug/hochladen.sh` | Export, Prüfung des IPA, Upload nach App Store Connect |
 | `.github/workflows/halle.yml` | Prüf-Job und Upload-Job |
 | `.github/workflows/ablauf.yml` | Montags: Prüf-Job auf `main`, rot, wenn der letzte Upload älter als 70 Tage ist |
@@ -41,18 +42,39 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
   `gebaut` ist der Zeitpunkt des Baus in UTC, ISO 8601 auf die Sekunde (`2026-10-23T09:00:00Z`), lesbar
   für `Date.parse`; `werkzeug/bauen.sh` prüft das am Archiv. Sonst verwirft die Web-App den Start.
 - Fähigkeiten: Regie und Bühne melden `wach`, `buehne`, `diagnose`. Die Bühne braucht `diagnose`, damit
-  die Seite ihr Log als `protokoll` schickt.
+  die Seite ihr Log als `protokoll` schickt. Seit T2 meldet die Regie dazu `stift.doppeltipp`,
+  `stift.squeeze`, `haptik` (unten).
 - Swift an Seite: `CustomEvent("skema-huelle", { detail: { art, daten } })` am `window`. `buehne` und `wach`
   an beide nach jedem Laden und bei jeder Änderung (`wach` auch einmal beim Verbinden des TV),
-  `diagnose` als Antwort an die Regie. Ohne TV meldet `buehne` Zahlen 0, leere Texte, `zustand`
-  `unattached`, nie `null`.
+  `diagnose` als Antwort an die Regie, `stift.doppeltipp` und `stift.squeeze` nur an die Regie. Ohne TV
+  meldet `buehne` Zahlen 0, leere Texte, `zustand` `unattached`, nie `null`.
 - Seite an Swift: `window.webkit.messageHandlers.huelle.postMessage({ art, daten })`, `art` ist
-  `protokoll` (beide) oder `diagnose` (nur Regie).
+  `protokoll` (beide), `diagnose` oder `haptik` (nur Regie).
 - Die Quelle des Vertrags ist `packages/protocol/src/huelle.ts` im privaten Repo; ihr Build liegt als
   `huelle-vertrag.json` auf dem Worker (Namen, Fähigkeit je Weg, Felder mit Typen). `werkzeug/vertrag.sh`
   vergleicht sie mit `build/swift-vertrag.json`, das `bauen.sh` aus `Halle/Vertrag.swift` erzeugt: Namen,
-  Umschlag, Start, Fähigkeiten je Rolle, Felder mit Typen, in beide Richtungen. Beim Push nur Hinweis, im
-  Upload-Job rot; gegen die Testdatei in `werkzeug/testdaten/` ist es schon im Prüf-Job rot.
+  Umschlag, Start, Fähigkeiten je Rolle, Felder mit Typen, Werte (Einstellung, Phase, Art der Haptik), in
+  beide Richtungen. Beim Push nur Hinweis, im Upload-Job rot; gegen die Testdatei von Web 50c in
+  `werkzeug/testdaten/` ist es schon im Prüf-Job rot.
+
+## T2: Stift und Haptik
+
+- `Halle/Stift.swift` hängt `UIPencilInteraction` nur an die Regie-WebView. Doppeltipp
+  (`pencilInteraction(_:didReceiveTap:)`) sendet `stift.doppeltipp { einstellung, x?, y? }`, jede Phase der
+  Squeeze (`pencilInteraction(_:didReceiveSqueeze:)`) `stift.squeeze { phase, einstellung, x?, y? }`.
+- `einstellung` ist der Name des Falls von `UIPencilInteraction.preferredTapAction` bzw.
+  `preferredSqueezeAction` (`ignore`, `switchEraser`, `switchPrevious`, `showColorPalette`,
+  `showInkAttributes`, `showContextualPalette`, `runSystemShortcut`), `phase` einer von `began`, `changed`,
+  `ended`, `cancelled`. Ein Fall außerhalb des Vertrags geht nicht an die Seite, nur ins Protokoll.
+- `x`, `y`: `hoverPose.location` in CSS-px der Regie (Punkte der WebView geteilt durch `pageZoom`, 1).
+  Ohne Pose fehlen beide, nie `null`.
+- `haptik { typ, x, y }` nimmt Swift nur aus der Regie an: `form` an `pathCompleted(at:)`, `ausrichtung` an
+  `alignmentOccurred(at:)` eines `UICanvasFeedbackGenerator` an der Regie-WebView. Ein anderer `typ` wird
+  verworfen und protokolliert. Fühlbar nur mit Apple Pencil Pro.
+- Protokoll: `Stift: Doppeltipp switchEraser, Pose ja`, `Stift: Squeeze ended …, Pose nein, changed 3`,
+  `Haptik form`.
+- Upload erst, wenn Web 50c (die Tafel nutzt Stift und Haptik) auf dem Worker ist: Gegen die Web-App auf
+  `main` meldet T2 drei Fähigkeiten, die sie nicht nutzt, `vertrag.sh --streng` ist dann rot.
 
 ## App-Symbol
 

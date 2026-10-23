@@ -12,4 +12,5 @@ build/werkzeug/swift-vertrag > build/swift-vertrag.json
 jq -e 'type == "object"' build/swift-vertrag.json > /dev/null
 cp build/swift-vertrag.json build/logs/swift-vertrag.json
 echo "Formen von Swift in build/swift-vertrag.json:"
-jq -c '.rollen' build/swift-vertrag.json
+jq -r '"rollen: \(.rollen | tojson)", (.ereignisse | to_entries[] | "Ereignis \(.key): \(.value | tojson)"),
+  (.nachrichten | to_entries[] | "Nachricht \(.key): \(.value | tojson)"), "werte: \(.werte | tojson)"' build/swift-vertrag.json

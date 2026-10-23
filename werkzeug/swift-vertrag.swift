@@ -5,14 +5,18 @@ import Foundation
 // macOS (kein Simulator) und schreibt die Ausgabe nach build/swift-vertrag.json.
 //
 // Nichts hier ist eine zweite Liste der Felder: je Weg kodiert die App-Logik (Ereignis.json,
-// Nachricht.json) ein Beispiel, und die Felder mit Typen kommen vom Draht, also aus dem JSON, das die
-// Seite bekommt. Kann-Felder (Optional) erkennt Mirror; die Beispiele setzen jedes Feld, sonst bricht
-// das Werkzeug ab. Jede Nachricht liest Swift mit Nachricht.lies zurueck, so wie die Seite sie sendet.
-// Ein neuer Fall in Ereignis.Art oder Nachricht.Art laesst sich ohne Beispiel nicht uebersetzen.
+// Nachricht.json) Beispiele, und die Felder mit Typen kommen vom Draht, also aus dem JSON, das die
+// Seite bekommt. Kann-Felder (Optional) erkennt Mirror. Ein Kann-Feld ohne Wert muss auf dem Draht
+// fehlen (nie null), jedes andere Feld dort stehen; jedes Kann-Feld zeigen die Beispiele einmal mit und
+// einmal ohne Wert (Stift mit und ohne Hover-Pose), sonst bricht das Werkzeug ab. Jede Nachricht liest
+// Swift mit Nachricht.lies zurueck, so wie die Seite sie sendet. Ein neuer Fall in Ereignis.Art oder
+// Nachricht.Art laesst sich ohne Beispiel nicht uebersetzen. Die Texte mit fester Liste (werte im
+// Vertrag) kommen aus den Faellen der Swift-Typen StiftEinstellung, SqueezePhase und HaptikTyp.
 //
 // Ausgabe: { vertrag, umschlag, start, rollen: { regie|buehne: { faehigkeiten, ereignisse, nachrichten } },
-// ereignisse: { art: { feld: typ } }, nachrichten: { art: { feld: typ } } }; Typen wie in
-// huelle-vertrag.json (bool, zahl, text, texte, objekt), ein ? am Ende des Feldnamens heisst Kann-Feld.
+// ereignisse: { art: { feld: typ } }, nachrichten: { art: { feld: typ } }, werte: { liste: [text] } };
+// Typen wie in huelle-vertrag.json (bool, zahl, text, texte, objekt), ein ? am Ende des Feldnamens heisst
+// Kann-Feld.
 
 struct Abbruch: Error, CustomStringConvertible {
     let description: String
@@ -30,6 +34,16 @@ func beispiele(_ art: Ereignis.Art) -> [Ereignis] {
         return [.wach(WachDaten(aktiv: true)), .wach(WachDaten(aktiv: false))]
     case .diagnose:
         return [.diagnose(DiagnoseDaten(regieSzenen: 1, speicherMb: 212, waerme: "nominal", akku: -1, laden: "unknown", protokoll: ["09:00:00.000 Start"]))]
+    case .stiftDoppeltipp:
+        return [
+            .stiftDoppeltipp(StiftDoppeltippDaten(einstellung: .switchEraser, punkt: StiftPunkt(x: 412.5, y: 300))),
+            .stiftDoppeltipp(StiftDoppeltippDaten(einstellung: .ignore, punkt: nil)),
+        ]
+    case .stiftSqueeze:
+        return [
+            .stiftSqueeze(StiftSqueezeDaten(phase: .ended, einstellung: .showContextualPalette, punkt: StiftPunkt(x: 412.5, y: 300))),
+            .stiftSqueeze(StiftSqueezeDaten(phase: .began, einstellung: .switchPrevious, punkt: nil)),
+        ]
     }
 }
 
@@ -40,6 +54,8 @@ func beispiele(_ art: Nachricht.Art) -> [Nachricht] {
         return [.diagnose(LeereDaten())]
     case .protokoll:
         return [.protokoll(ProtokollDaten(stufe: "info", text: "Route geladen: cockpit"))]
+    case .haptik:
+        return [.haptik(HaptikDaten(typ: .form, x: 412.5, y: 300)), .haptik(HaptikDaten(typ: .ausrichtung, x: 0, y: 0))]
     }
 }
 
@@ -69,20 +85,27 @@ func objekt(_ json: String, _ wo: String) throws -> [String: Any] {
 }
 
 /// Felder eines Objekts vom Draht mit Typ; Kann-Felder aus den Eigenschaften des Swift-Werts (Mirror).
+/// Auf dem Draht stehen genau die Eigenschaften mit Wert: ein Kann-Feld ohne Wert fehlt dort (nie null).
 func felder(_ draht: [String: Any], _ wert: Any, _ wo: String) throws -> [String: String] {
-    var eigenschaften: [String: Bool] = [:]
+    var kann: [String: Bool] = [:]
+    var mitWert: Set<String> = []
     for kind in Mirror(reflecting: wert).children {
         guard let name = kind.label else {
             throw Abbruch(description: "\(wo): Eigenschaft ohne Namen")
         }
-        eigenschaften[name] = Mirror(reflecting: kind.value).displayStyle == .optional
+        let inhalt = Mirror(reflecting: kind.value)
+        let optional = inhalt.displayStyle == .optional
+        kann[name] = optional
+        if !optional || !inhalt.children.isEmpty {
+            mitWert.insert(name)
+        }
     }
-    guard Set(eigenschaften.keys) == Set(draht.keys) else {
-        throw Abbruch(description: "\(wo): Eigenschaften \(eigenschaften.keys.sorted()), auf dem Draht \(draht.keys.sorted()); das Beispiel setzt jedes Feld, CodingKeys benennen nichts um")
+    guard mitWert == Set(draht.keys) else {
+        throw Abbruch(description: "\(wo): Eigenschaften mit Wert \(mitWert.sorted()), auf dem Draht \(draht.keys.sorted()); ein Kann-Feld ohne Wert fehlt dort (nie null), CodingKeys benennen nichts um")
     }
     var ergebnis: [String: String] = [:]
     for (name, inhalt) in draht {
-        ergebnis[(eigenschaften[name] ?? false) ? name + "?" : name] = drahtTyp(inhalt)
+        ergebnis[(kann[name] ?? false) ? name + "?" : name] = drahtTyp(inhalt)
     }
     return ergebnis
 }
@@ -100,15 +123,32 @@ func form(_ json: String, _ fall: Any, _ art: String, _ wo: String) throws -> (u
     return (draht.mapValues(drahtTyp), felderDaten)
 }
 
-/// Alle Beispiele eines Wegs muessen dieselbe Form haben (die Buehne ohne TV wie mit).
-func einig(_ formen: [[String: String]], _ wo: String) throws -> [String: String] {
-    guard let erste = formen.first else {
+/// Form eines Wegs aus allen Beispielen (die Buehne ohne TV wie mit, der Stift mit und ohne Pose): jedes
+/// Feld hat in jedem Beispiel denselben Typ, ein Pflichtfeld steht in jedem, ein Kann-Feld in einem mit
+/// und in einem ohne Wert.
+func vereinige(_ formen: [[String: String]], _ wo: String) throws -> [String: String] {
+    guard !formen.isEmpty else {
         throw Abbruch(description: "\(wo): kein Beispiel")
     }
-    for andere in formen where andere != erste {
-        throw Abbruch(description: "\(wo): Beispiele mit verschiedenen Formen: \(erste.sorted { $0.key < $1.key }) und \(andere.sorted { $0.key < $1.key })")
+    var ergebnis: [String: String] = [:]
+    for form in formen {
+        for (feld, typ) in form {
+            if let bisher = ergebnis[feld], bisher != typ {
+                throw Abbruch(description: "\(wo): Feld \(feld) ist in einem Beispiel \(bisher), in einem anderen \(typ)")
+            }
+            ergebnis[feld] = typ
+        }
     }
-    return erste
+    for feld in ergebnis.keys.sorted() {
+        let fehlt = formen.contains { $0[feld] == nil }
+        if feld.hasSuffix("?") && !fehlt {
+            throw Abbruch(description: "\(wo): Kann-Feld \(feld) hat kein Beispiel ohne Wert; keins zeigt, dass es dann fehlt (nie null)")
+        }
+        if !feld.hasSuffix("?") && fehlt {
+            throw Abbruch(description: "\(wo): Pflichtfeld \(feld) fehlt in einem Beispiel")
+        }
+    }
+    return ergebnis
 }
 
 func formen() throws -> [String: Any] {
@@ -124,7 +164,7 @@ func formen() throws -> [String: Any] {
             umschlaege.append(teil.umschlag)
             felderJe.append(teil.felder)
         }
-        ereignisse[art.rawValue] = try einig(felderJe, "Ereignis \(art.rawValue)")
+        ereignisse[art.rawValue] = try vereinige(felderJe, "Ereignis \(art.rawValue)")
     }
     var nachrichten: [String: Any] = [:]
     for art in Nachricht.Art.allCases {
@@ -148,7 +188,7 @@ func formen() throws -> [String: Any] {
             umschlaege.append(teil.umschlag)
             felderJe.append(teil.felder)
         }
-        nachrichten[art.rawValue] = try einig(felderJe, "Nachricht \(art.rawValue)")
+        nachrichten[art.rawValue] = try vereinige(felderJe, "Nachricht \(art.rawValue)")
     }
     let start = Vertrag.start(.regie, bau: "0.1 (1.1)", xcode: "Xcode 26.6", gebaut: "2026-10-23T09:00:00Z")
     let startFelder = try felder(try objekt(try jsonText(start), "Start"), start, "Start")
@@ -162,11 +202,16 @@ func formen() throws -> [String: Any] {
     }
     return [
         "vertrag": Vertrag.nummer,
-        "umschlag": try einig(umschlaege, "Umschlag"),
+        "umschlag": try vereinige(umschlaege, "Umschlag"),
         "start": startFelder,
         "rollen": rollen,
         "ereignisse": ereignisse,
         "nachrichten": nachrichten,
+        "werte": [
+            "stiftEinstellung": StiftEinstellung.allCases.map { $0.rawValue },
+            "squeezePhase": SqueezePhase.allCases.map { $0.rawValue },
+            "haptikTyp": HaptikTyp.allCases.map { $0.rawValue },
+        ],
     ]
 }
 
