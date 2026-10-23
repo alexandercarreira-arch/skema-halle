@@ -33,8 +33,10 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SUPPORTS_MACCATALYST: "NO"
         # Werden im Lauf gesetzt (werkzeug/bauen.sh) und landen als HuelleXcode und HuelleGebaut in der
-        # Info.plist: erste Zeile von `xcodebuild -version` und Zeitpunkt des Baus in UTC (ISO 8601).
-        # Die Diagnose rechnet daraus „gilt bis" (90 Tage, Bauzettel 50 § 2.3).
+        # Info.plist: erste Zeile von `xcodebuild -version` und Zeitpunkt des Baus in UTC, ISO 8601 auf die
+        # Sekunde (2026-10-23T09:00:00Z; bauen.sh prueft das am Archiv, die Web-App liest ihn mit
+        # Date.parse). Die Diagnose rechnet daraus „gilt bis" (90 Tage, Bauzettel 50 § 2.3). `lokal` gilt
+        # nur ohne bauen.sh; die Web-App verwirft dann den Start der Huelle.
         HUELLE_XCODE: lokal
         HUELLE_GEBAUT: lokal
 schemes:

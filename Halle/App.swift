@@ -9,7 +9,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private var minutenTakt: Takt?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        Protokoll.shared.schreibe("Start: SLSHM Coach \(Bau.text), \(Bau.xcode), gebaut \(Bau.gebaut), gilt bis \(Bau.giltBis ?? "?"), iPadOS \(UIDevice.current.systemVersion), Worker \(Worker.host)")
+        Protokoll.shared.schreibe("Start: SLSHM Coach \(Bau.text), \(Bau.xcode), gebaut \(Bau.gebaut), gilt bis \(Bau.giltBis ?? "? (gebaut ist kein ISO 8601, die Seite verwirft den Start)"), iPadOS \(UIDevice.current.systemVersion), Worker \(Worker.host)")
         UIDevice.current.isBatteryMonitoringEnabled = true
         let zentrale = NotificationCenter.default
         zentrale.addObserver(self, selector: #selector(akkuGeaendert), name: UIDevice.batteryStateDidChangeNotification, object: nil)

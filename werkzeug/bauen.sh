@@ -161,6 +161,15 @@ gleich CFBundleVersion "$(wert CFBundleVersion)" "$BUILD"
 gleich CFBundleDisplayName "$(wert CFBundleDisplayName)" "$ANZEIGENAME"
 gleich HuelleXcode "$(wert HuelleXcode)" "$HUELLE_XCODE"
 gleich HuelleGebaut "$(wert HuelleGebaut)" "$HUELLE_GEBAUT"
+# Vertrag der Bruecke: gebaut ist ISO 8601 in UTC auf die Sekunde (2026-10-23T09:00:00Z), eine Form des
+# Date Time String Format von ECMAScript. Liest Date.parse ihn nicht, verwirft die Web-App den ganzen
+# Start (leseHuelleStart in packages/protocol/src/huelle.ts) und laeuft wie im Browser.
+ISO8601='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+if [[ "$(wert HuelleGebaut)" =~ $ISO8601 ]]; then
+  echo "ok: HuelleGebaut ist ISO 8601"
+else
+  rot "HuelleGebaut ist '$(wert HuelleGebaut)', erwartet ISO 8601 in UTC wie 2026-10-23T09:00:00Z (Date.parse)"
+fi
 gleich ITSAppUsesNonExemptEncryption "$(wert ITSAppUsesNonExemptEncryption)" false
 gleich "UIDeviceFamily:0" "$(wert UIDeviceFamily:0)" 2
 gleich "UIDeviceFamily:1" "$(wert UIDeviceFamily:1)" "<fehlt>"

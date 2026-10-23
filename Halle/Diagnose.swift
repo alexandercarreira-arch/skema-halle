@@ -7,7 +7,10 @@ enum Bau {
     static let version = Bau.info("CFBundleShortVersionString")
     static let nummer = Bau.info("CFBundleVersion")
     static let xcode = Bau.info("HuelleXcode")
-    /// Zeitpunkt des Baus in UTC, ISO 8601. Der Upload-Job laedt im selben Lauf hoch.
+    /// Zeitpunkt des Baus in UTC, ISO 8601 auf die Sekunde (z. B. `2026-10-23T09:00:00Z`); bauen.sh setzt
+    /// und prueft ihn am Archiv. Vertrag der Bruecke: die Web-App liest ihn mit `Date.parse` und verwirft
+    /// sonst den ganzen Start (`leseHuelleStart`), die Seite liefe wie im Browser. `lokal` steht hier nur
+    /// ohne bauen.sh. Der Upload-Job laedt im selben Lauf hoch.
     static let gebaut = Bau.info("HuelleGebaut")
     /// „0.1 (17.1)"
     static let text = "\(version) (\(nummer))"

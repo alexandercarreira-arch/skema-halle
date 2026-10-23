@@ -36,6 +36,8 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 ## Brücke (Vertrag 1)
 
 - Swift an Seite beim Laden: `window.__skemaHuelle = { vertrag, rolle, bau, xcode, gebaut, faehigkeiten }`.
+  `gebaut` ist der Zeitpunkt des Baus in UTC, ISO 8601 auf die Sekunde (`2026-10-23T09:00:00Z`), lesbar
+  für `Date.parse`; `werkzeug/bauen.sh` prüft das am Archiv. Sonst verwirft die Web-App den Start.
 - Swift an Seite: `CustomEvent("skema-huelle", { detail: { typ, daten } })` am `window`, `typ` ist
   `buehne` oder `diagnose`.
 - Seite an Swift: `window.webkit.messageHandlers.huelle.postMessage({ typ, daten })`, `typ` ist
