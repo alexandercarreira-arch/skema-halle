@@ -66,13 +66,18 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
   `preferredSqueezeAction` (`ignore`, `switchEraser`, `switchPrevious`, `showColorPalette`,
   `showInkAttributes`, `showContextualPalette`, `runSystemShortcut`), `phase` einer von `began`, `changed`,
   `ended`, `cancelled`. Ein Fall außerhalb des Vertrags geht nicht an die Seite, nur ins Protokoll.
-- `x`, `y`: `hoverPose.location` in CSS-px der Regie (Punkte der WebView geteilt durch `pageZoom`, 1).
-  Ohne Pose fehlen beide, nie `null`.
+- `x`, `y`: `hoverPose.location` in CSS-px der Regie, so wie `clientX`/`clientY` der Seite. WebKit auf iOS
+  zählt sie ab der Ecke des sichtbaren Ausschnitts, daher `(Punkt - Rand) / (zoomScale * pageZoom)`;
+  `contentOffset` fällt heraus, `Rand` sind die verdeckten Ränder (`obscuredContentInsets`, 0). Belege und
+  Umkehrung für die Haptik in `SeitenLage` (`Halle/Stift.swift`). Ohne Pose fehlen beide, nie `null`.
 - `haptik { typ, x, y }` nimmt Swift nur aus der Regie an: `form` an `pathCompleted(at:)`, `ausrichtung` an
   `alignmentOccurred(at:)` eines `UICanvasFeedbackGenerator` an der Regie-WebView. Ein anderer `typ` wird
-  verworfen und protokolliert. Fühlbar nur mit Apple Pencil Pro.
-- Protokoll: `Stift: Doppeltipp switchEraser, Pose ja`, `Stift: Squeeze ended …, Pose nein, changed 3`,
-  `Haptik form`.
+  verworfen und protokolliert. Fühlbar nur mit Apple Pencil Pro. Der Generator wird beim Anlegen und nach
+  jedem Auslösen vorbereitet (`prepare()`).
+- Protokoll: `Stift: Doppeltipp switchEraser, Pose 412.5,300 pt = 412.5,300 css, zoomScale 1, contentOffset
+  0,0, pageZoom 1`, `Stift: Squeeze ended …, Pose nein, zoomScale 1, contentOffset 0,0, pageZoom 1,
+  changed 3`, `Haptik form`. Für G11: zoomScale und contentOffset zeigen, ob die Umrechnung am Gerät
+  stimmt.
 - Upload erst, wenn Web 50c (die Tafel nutzt Stift und Haptik) auf dem Worker ist: Gegen die Web-App auf
   `main` meldet T2 drei Fähigkeiten, die sie nicht nutzt, `vertrag.sh --streng` ist dann rot.
 
