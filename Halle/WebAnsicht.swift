@@ -59,7 +59,8 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
     let webView: WKWebView
     /// Hat die Seite nach dem letzten Laden `window.__skemaHuelle` gesehen? `nil`: noch nicht geladen.
     private(set) var brueckeInSeite: Bool?
-    /// Das letzte Laden scheiterte am Netz; Netz.swift meldet, wann es wieder geht.
+    /// Das letzte Laden scheiterte am Netz. Neu geladen wird bei jeder Pfadmeldung „verbunden"
+    /// (Netz.swift) und wenn die Regie wieder nach vorn kommt (App.swift `sceneWillEnterForeground`).
     private var wartetAufNetz = false
 
     init(rolle: Rolle) {
@@ -84,7 +85,7 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
         webView.scrollView.delegate = self
-        NotificationCenter.default.addObserver(self, selector: #selector(netzZurueck), name: Netz.zurueck, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(netzVerbunden), name: Netz.verbunden, object: nil)
         lade()
     }
 
@@ -98,11 +99,18 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
         webView.load(URLRequest(url: url))
     }
 
-    @objc private func netzZurueck() {
+    @objc private func netzVerbunden() {
+        ladeNeuWennWartet("Netz verbunden")
+    }
+
+    /// Laedt neu, wenn das letzte Laden am Netz scheiterte; sonst nichts. Anlaesse: jede Pfadmeldung
+    /// „verbunden" und die Regie wieder vorn. Scheitert das Laden erneut, wartet die Ansicht auf den
+    /// naechsten Anlass; kein Timer (Regel 2).
+    func ladeNeuWennWartet(_ anlass: String) {
         guard wartetAufNetz else {
             return
         }
-        Protokoll.shared.schreibe("\(rolle.name): Netz zurück, lade neu")
+        Protokoll.shared.schreibe("\(rolle.name): \(anlass), lade nach Ladefehler neu")
         lade()
     }
 
@@ -203,7 +211,7 @@ final class WebAnsicht: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMe
         if netz {
             wartetAufNetz = true
         }
-        Protokoll.shared.schreibe("\(rolle.name) \(was): \(fehlerText(fehler))\(netz ? ", warte auf Netz" : "")")
+        Protokoll.shared.schreibe("\(rolle.name) \(was): \(fehlerText(fehler))\(netz ? ", warte auf Netzmeldung oder Regie vorn" : "")")
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {

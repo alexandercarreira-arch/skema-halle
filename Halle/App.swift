@@ -70,6 +70,16 @@ final class RegieSzene: UIResponder, UIWindowSceneDelegate {
         Zustand.shared.aktualisiere()
     }
 
+    /// Die Regie kommt wieder nach vorn: Wartet eine Ansicht nach einem Ladefehler, laedt sie neu. Das
+    /// deckt den Ladefehler bei verbundenem Pfad, nach dem `NWPathMonitor` nichts mehr meldet (Netz.swift).
+    func sceneWillEnterForeground(_ scene: UIScene) {
+        melde("willEnterForeground")
+        let regie = (window?.rootViewController as? RegieController)?.web
+        for ansicht in [regie, Zustand.shared.buehneWeb].compactMap({ $0 }) {
+            ansicht.ladeNeuWennWartet("Regie wieder vorn")
+        }
+    }
+
     func sceneDidBecomeActive(_ scene: UIScene) {
         melde("didBecomeActive")
     }
@@ -91,7 +101,7 @@ final class RegieSzene: UIResponder, UIWindowSceneDelegate {
 /// Wurzel der Regie: die Regie-WebView ist die Ansicht selbst. Keine nativen Knoepfe (`46` Entscheid 3).
 @MainActor
 final class RegieController: UIViewController {
-    private var web: WebAnsicht?
+    private(set) var web: WebAnsicht?
     /// Nur mit Xcode 27 im Bau (`45` E6): die `UISceneAccessoryRegistration`. Als `AnyObject` gehalten,
     /// weil eine gespeicherte Eigenschaft nicht hinter `#available` stehen kann.
     private var tvRegistrierung: AnyObject?

@@ -2,13 +2,16 @@ import Foundation
 import Network
 
 /// Rueckfall ohne Netz und ohne Dienst (Bauzettel 50, § 2.2): Scheitert das Laden einer Web-Ansicht am
-/// Netz, bleibt sie auf dem leeren Startbild und laedt neu, sobald `NWPathMonitor` wieder Netz meldet.
+/// Netz, bleibt sie auf dem leeren Startbild und wartet. Neu geladen wird bei jeder Pfadmeldung
+/// „verbunden" von `NWPathMonitor`, nicht nur beim Wechsel von „weg" auf „da": Das Laden scheitert auch
+/// bei verbundenem Pfad (Hotspot ohne Internet, Namensaufloesung, Zeitueberschreitung im Hallen-WLAN),
+/// dann kommt nie ein Wechsel. Dazu laedt die Regie-Szene neu, wenn sie wieder nach vorn kommt (App.swift).
 /// Kein Timer, kein Knopf, keine eigene Fehlerseite (Regel 2, Regel 7, `46` Entscheid 3).
 @MainActor
 final class Netz {
     static let shared = Netz()
-    /// Gepostet, wenn das Netz nach einer Luecke wieder da ist.
-    static let zurueck = Notification.Name("HalleNetzZurueck")
+    /// Gepostet bei jeder Pfadmeldung „verbunden", auch ohne Wechsel.
+    static let verbunden = Notification.Name("HalleNetzVerbunden")
 
     private let monitor = NWPathMonitor()
     private(set) var da: Bool?
@@ -24,26 +27,25 @@ final class Netz {
     nonisolated private static func beobachte(_ monitor: NWPathMonitor) {
         monitor.pathUpdateHandler = { pfad in
             let jetzt = pfad.status == .satisfied
+            let wege = pfad.availableInterfaces.map { "\($0.type)" }
             Task { @MainActor in
-                Netz.shared.melde(jetzt)
+                Netz.shared.melde(jetzt, wege)
             }
         }
         monitor.start(queue: DispatchQueue(label: "io.github.alexandercarreira-arch.skema-halle.netz"))
     }
 
-    private func melde(_ jetzt: Bool) {
-        let vorher = da
-        guard jetzt != vorher else {
-            return
-        }
+    private func melde(_ jetzt: Bool, _ wege: [String]) {
+        let wechsel = jetzt != da
         da = jetzt
-        Protokoll.shared.schreibe("Netz: \(jetzt ? "da" : "weg")")
-        if jetzt, vorher == false {
-            NotificationCenter.default.post(name: Netz.zurueck, object: nil)
+        let art = wege.isEmpty ? "ohne Schnittstelle" : wege.joined(separator: ", ")
+        Protokoll.shared.schreibe("Netz: \(wechsel ? "" : "weiter ")\(jetzt ? "da" : "weg") (\(art))")
+        if jetzt {
+            NotificationCenter.default.post(name: Netz.verbunden, object: nil)
         }
     }
 
-    /// Fehler, nach denen ein Neuladen bei wiederkehrendem Netz hilft.
+    /// Fehler, nach denen ein Neuladen bei verbundenem Netz hilft.
     nonisolated static func istNetzFehler(_ fehler: Error) -> Bool {
         let ns = fehler as NSError
         guard ns.domain == NSURLErrorDomain else {

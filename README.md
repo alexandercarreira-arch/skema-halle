@@ -22,7 +22,7 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 | `Halle/TvSzene.swift` | TV-Szene: Overscan `.none`, Bühne randlos, Wach, gemeinsamer Zustand |
 | `Halle/WebAnsicht.swift` | Die zwei WKWebViews: App-Bound Domains, Navigation nur auf der Worker-Domain |
 | `Halle/Bruecke.swift` | Vertrag mit der Web-App: `window.__skemaHuelle`, Ereignisse, Nachrichten |
-| `Halle/Netz.swift` | Neu laden, wenn das Netz nach einem gescheiterten Laden zurückkommt |
+| `Halle/Netz.swift` | Nach einem Ladefehler neu laden: bei jeder Pfadmeldung „verbunden“ und wenn die Regie wieder vorn ist |
 | `Halle/Diagnose.swift` | Bau, „gilt bis“, Bildschirm, Modi, Wach, Speicher für den Abschnitt „Hülle“ |
 | `Halle/Protokoll.swift` | Natives Protokoll mit Spiegel ins Systemlog |
 | `symbol/slshm-monogramm.pdf` | Quelle des App-Symbols: das SLSHM-Monogramm (Eigentum des Vereins) |
