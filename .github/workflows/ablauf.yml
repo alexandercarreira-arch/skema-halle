@@ -1,6 +1,7 @@
 # Huelle: woechentliche Pruefung gegen den Ablauf der Testbauten (Bauzettel 50, § 2.3, RH50-4, RH50-5).
 # - Pruef-Job: baut den Stand von main wie halle.yml, damit eine Aenderung am Runner-Abbild frueh auffaellt.
-# - Alter: rot, wenn der letzte erfolgreiche Upload aelter als 70 Tage ist (ein Testbau startet 90 Tage).
+# - Alter: rot, wenn der letzte erfolgreiche Upload aelter als 70 Tage ist (ein Testbau startet
+#   hoechstens bis 90 Tage nach dem Upload).
 # Keine Secrets, nur GITHUB_TOKEN mit actions: read. Hochladen startet weiter nur Alex (halle.yml).
 # Den roten Lauf meldet GitHub dem, der die cron-Zeile zuletzt geaendert hat. In oeffentlichen Repos
 # schaltet GitHub Zeitplaene nach 60 Tagen ohne Aktivitaet ab; dann tragen „gilt bis" in der Diagnose

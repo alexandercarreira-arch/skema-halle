@@ -13,7 +13,7 @@ externe Displays von selbst randlos am TV als **Bühne** (`/tv`). Ausbau der Pro
 - **Schlichtes UIKit in Swift**, ohne Capacitor. Das Xcode-Projekt erzeugt XcodeGen aus `project.yml` in
   jedem Lauf neu; es liegt nie im Repo.
 - **Nur TestFlight intern** (`testFlightInternalTestingOnly`): nie extern, nie in den App Store. Jeder
-  Testbau startet 90 Tage nach dem Upload.
+  Testbau startet höchstens bis 90 Tage nach dem Upload.
 - Keine Zertifikate, Profile oder Schlüssel im Repo. Signiert wird erst beim Export auf dem Runner.
 
 | Pfad | Inhalt |
