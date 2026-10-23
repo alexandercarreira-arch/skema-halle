@@ -1,0 +1,6 @@
+*.p8
+*.p12
+*.mobileprovision
+build/
+DerivedData/
+*.xcodeproj/
