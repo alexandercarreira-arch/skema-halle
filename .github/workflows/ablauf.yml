@@ -1,0 +1,74 @@
+# Huelle: woechentliche Pruefung gegen den Ablauf der Testbauten (Bauzettel 50, § 2.3, RH50-4, RH50-5).
+# - Pruef-Job: baut den Stand von main wie halle.yml, damit eine Aenderung am Runner-Abbild frueh auffaellt.
+# - Alter: rot, wenn der letzte erfolgreiche Upload aelter als 70 Tage ist (ein Testbau startet 90 Tage).
+# Keine Secrets, nur GITHUB_TOKEN mit actions: read. Hochladen startet weiter nur Alex (halle.yml).
+# Den roten Lauf meldet GitHub dem, der die cron-Zeile zuletzt geaendert hat. In oeffentlichen Repos
+# schaltet GitHub Zeitplaene nach 60 Tagen ohne Aktivitaet ab; dann tragen „gilt bis" in der Diagnose
+# und der Kalender allein.
+name: Ablauf
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ablauf
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  pruefen:
+    name: Pruef-Job
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Bauen und pruefen
+        run: bash werkzeug/bauen.sh
+      - name: Vertrag der Bruecke (Hinweis)
+        run: bash werkzeug/vertrag.sh
+
+  alter:
+    name: Alter des Testbaus
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Letzter Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GRENZE_TAGE: "70"
+        run: |
+          set -euo pipefail
+          LAEUFE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/halle.yml/runs?event=workflow_dispatch&branch=main&status=success&per_page=100" --jq '.workflow_runs[].id')"
+          ZEIT=""
+          for lauf in $LAEUFE; do
+            # Nur ein Upload-Job, dessen Upload-Schritt lief (ohne Secrets ist der Job gruen, laedt aber nichts).
+            ZEIT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$lauf/jobs" --jq '[.jobs[] | select(.name == "Upload-Job" and .conclusion == "success") | select(any(.steps[]; .name == "Exportieren, pruefen, hochladen" and .conclusion == "success")) | .completed_at] | first // empty')"
+            if [ -n "$ZEIT" ]; then break; fi
+          done
+          if [ -z "$ZEIT" ]; then
+            echo "::warning::Noch kein erfolgreicher Upload, also kein Testbau, der ablaufen kann"
+            echo "- Noch kein erfolgreicher Upload" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          TAGE=$(( ( $(date -u +%s) - $(date -u -d "$ZEIT" +%s) ) / 86400 ))
+          BIS="$(date -u -d "$ZEIT + 90 days" +%Y-%m-%d)"
+          echo "Letzter Upload $ZEIT, vor $TAGE Tagen; der Testbau startet bis etwa $BIS"
+          echo "- Letzter Upload vor $TAGE Tagen, Testbau startet bis etwa $BIS" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$TAGE" -gt "$GRENZE_TAGE" ]; then
+            echo "::error::Letzter Upload vor $TAGE Tagen (Grenze $GRENZE_TAGE): neuen Testbau hochladen (Actions, Halle, Run workflow, main, hochladen an), nie waehrend eines Trainings"
+            exit 1
+          fi

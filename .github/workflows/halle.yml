@@ -1,0 +1,118 @@
+# Huelle „SLSHM Coach": Bau, Pruefung und Upload nach TestFlight intern (Bauzettel 50, § 2.5, § 4).
+# Den Namen dieser Datei nie aendern: run_number zaehlt je Workflow, die Baunummer darf nie kleiner werden.
+#
+# Pruef-Job: jeder Push (und Handstart ohne Upload). Kompiliert ohne Signatur, ohne Secrets; der Vertrag
+# der Bruecke gibt hier nur Hinweise. Legt das App-Symbol als Artefakt ab.
+# Upload-Job: nur von Hand auf main mit hochladen=true, nie auf pull_request; startet nur Alex. Vertrag
+# streng, dann Upload mit den Repository-Secrets ASC_KEY_ID, ASC_ISSUER_ID und ASC_KEY_P8 (PEM-Text).
+#   gh workflow run halle.yml -R alexandercarreira-arch/skema-halle --ref main -f hochladen=true
+name: Halle
+
+on:
+  push:
+    paths:
+      - "Halle/**"
+      - "project.yml"
+      - "werkzeug/**"
+      - ".github/**"
+  workflow_dispatch:
+    inputs:
+      xcode:
+        description: "Xcode-Fassung (27 nur ohne Upload vor G27, Bauzettel 50 § 6)"
+        type: choice
+        options:
+          - "26.6"
+          - "27"
+        default: "26.6"
+      hochladen:
+        description: "Nach TestFlight hochladen (nur auf main, nie waehrend eines Trainings)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: halle-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  pruefen:
+    name: Pruef-Job
+    if: github.event_name == 'push' || !inputs.hochladen
+    runs-on: ${{ inputs.xcode == '27' && 'xcode-27' || 'macos-26' }}
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: ${{ inputs.xcode == '27' && '/Applications/Xcode_27.app/Contents/Developer' || '/Applications/Xcode_26.6.app/Contents/Developer' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Bauen und pruefen
+        run: bash werkzeug/bauen.sh
+      - name: Vertrag der Bruecke (Hinweis)
+        run: bash werkzeug/vertrag.sh
+      - name: Artefakt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: halle-${{ github.run_number }}.${{ github.run_attempt }}-xcode${{ inputs.xcode || '26.6' }}
+          path: build/logs
+          retention-days: 14
+          if-no-files-found: warn
+      - name: App-Symbol
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-symbol-${{ github.run_number }}.${{ github.run_attempt }}
+          path: Halle/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+          retention-days: 30
+          if-no-files-found: error
+
+  hochladen:
+    name: Upload-Job
+    if: github.event_name == 'workflow_dispatch' && inputs.hochladen && github.ref == 'refs/heads/main'
+    runs-on: ${{ inputs.xcode == '27' && 'xcode-27' || 'macos-26' }}
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: ${{ inputs.xcode == '27' && '/Applications/Xcode_27.app/Contents/Developer' || '/Applications/Xcode_26.6.app/Contents/Developer' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Bauen und pruefen
+        run: bash werkzeug/bauen.sh
+      - name: Vertrag der Bruecke (streng)
+        run: bash werkzeug/vertrag.sh --streng
+      - name: Secrets vorhanden?
+        id: schluessel
+        env:
+          DA: ${{ secrets.ASC_KEY_ID != '' && secrets.ASC_ISSUER_ID != '' && secrets.ASC_KEY_P8 != '' }}
+        run: |
+          echo "da=$DA" >> "$GITHUB_OUTPUT"
+          if [ "$DA" != "true" ]; then
+            echo "::warning::ASC_KEY_ID, ASC_ISSUER_ID oder ASC_KEY_P8 fehlt: nur gebaut und geprueft, nichts hochgeladen"
+            echo "- Secrets fehlen: nur gebaut und geprueft, nichts hochgeladen" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Exportieren, pruefen, hochladen
+        if: steps.schluessel.outputs.da == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: bash werkzeug/hochladen.sh
+      - name: Schluessel loeschen
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc" "$RUNNER_TEMP/halle-roh"
+      - name: Artefakt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: halle-${{ github.run_number }}.${{ github.run_attempt }}-xcode${{ inputs.xcode || '26.6' }}
+          path: build/logs
+          retention-days: 14
+          if-no-files-found: warn

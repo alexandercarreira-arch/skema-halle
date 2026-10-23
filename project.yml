@@ -1,0 +1,48 @@
+# Huelle „SLSHM Coach": Projektbeschreibung fuer XcodeGen 2.46.0 (Bauzettel 50, § 4; Muster Probe S1-H).
+# Das Xcode-Projekt entsteht in jedem Lauf neu und liegt nie im Repo.
+name: Halle
+options:
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: FTZZJQT9QX
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Halle:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Halle
+        excludes:
+          - PrivacyInfo.xcprivacy
+      - path: Halle/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: Halle
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.alexandercarreira-arch.skema-halle
+        INFOPLIST_FILE: Halle/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SUPPORTS_MACCATALYST: "NO"
+        # Werden im Lauf gesetzt (werkzeug/bauen.sh) und landen als HuelleXcode und HuelleGebaut in der
+        # Info.plist: erste Zeile von `xcodebuild -version` und Zeitpunkt des Baus in UTC (ISO 8601).
+        # Die Diagnose rechnet daraus „gilt bis" (90 Tage, Bauzettel 50 § 2.3).
+        HUELLE_XCODE: lokal
+        HUELLE_GEBAUT: lokal
+schemes:
+  Halle:
+    build:
+      targets:
+        Halle: all
+    run:
+      config: Debug
+    archive:
+      config: Release
